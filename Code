@@ -1,0 +1,137 @@
+#include <WiFi.h>  
+#include <Wire.h>  
+#include <Adafruit_BMP280.h>  
+// WiFi credentials and server 
+details  
+const  
+char*  
+ssid  
+=  
+"RASPBERRY_PI_IP"; 
+// 
+Replace with Raspberry Pi's IP, 
+e.g., "192.168.1.100" const int 
+serverPort = 12345;  
+"YOUR_WIFI_SSID"; 
+#include <MPU6050.h>  
+#include <TinyGPS++.h>  
+#include <HardwareSerial.h>  
+Replace with your WiFi SSID  
+const 
+char* 
+password 
+// 
+= 
+"YOUR_WIFI_PASSWORD"; //  
+Replace with your WiFi password  
+const  
+char*  
+serverIP  =  
+// Initialize objects  
+WiFiUDP udp;  
+Adafruit_BMP280 bmp;  
+MPU6050 mpu;  
+TinyGPSPlus gps;  
+HardwareSerial gpsSerial(2); // 
+UART for GPS (RX: GPIO 16, 
+TX: GPIO 17)  
+  
+void setup() {  
+  Serial.begin(115200);   
+gpsSerial.begin(9600, 
+SERIAL_8N1,  
+16, 17); // Initialize GPS UART  
+  Wire.begin(); // Initialize I2C  
+  
+  // Connect to WiFi  
+  WiFi.begin(ssid, password);  
+  while  (WiFi.status()  != 
+WL_CONNECTED) {  
+    delay(500);  
+    Serial.print(".");  
+  }  
+  Serial.println("WiFi 
+connected");  
+  
+  // Initialize BMP280   if 
+(!bmp.begin(0x76)) {  
+    Serial.println("BMP280 
+initialization failed!");     while 
+(1);   }  
+  
+  // Initialize MPU6050   
+mpu.initialize();   if 
+(!mpu.testConnection()) {  
+    Serial.println("MPU6050 
+initialization failed!");     while 
+(1);   }  
+  
+  // Initialize UDP   
+udp.begin(12345);  
+}  
+  
+void loop() {   // Read BMP280 
+data  
+  float temp = 
+bmp.readTemperature(); // 
+Temperature in °C  
+  float pressure = 
+bmp.readPressure() /  
+100.0F; // Pressure in hPa  
+  float  altitude  = 
+bmp.readAltitude(1013.25); // 
+Altitude in meters  
+  
+  // Read MPU6050 data   int16_t 
+ax, ay, az, gx, gy, gz;  
+  mpu.getMotion6(&ax, 
+ &ay,  &az, &gx, 
+&gy, &gz); // Acceleration (mg) 
+and Gyro (deg/s)  
+  
+  // Read GPS data   while 
+(gpsSerial.available() > 0) {     
+gps.encode(gpsSerial.read());  
+  }  
+  float latitude = 
+gps.location.isValid() ? 
+gps.location.lat() : 0.0;  
+  float longitude = 
+gps.location.isValid()  
+? gps.location.lng() : 0.0;  
+  
+  // Read battery voltage (using 
+voltage                    String(ax) 
++ "," + String(ay)    
+udp.beginPacket(serverIP, 
+serverPort);  
+divider)  + "," + String(az) + "," 
++  
+  udp.print(packet);  
+  float battery = analogRead(34) 
+* (3.3 /                    String(gx) 
++ "," + String(gy)  
+  udp.endPacket();  
+4095.0) * 2.0; // Scaled to actual 
+voltage  + "," + String(gz) + "," 
++  
+  
+                    
+String(latitude, 6) + "," +  
+ String(longitude,  6) 
+ +  ","  + 
+   // Log to serial 
+monitor for debugging  
+  // Prepare telemetry packet  
+String(battery);  
+  Serial.println("Sent: " + 
+packet);   String packet = 
+String(temp) + "," +  
+  
+String(pressure) + "," + 
+String(altitude)    
+delay(1000); // Transmit every 
+second  
++ "," +    // Send packet via 
+WiFi  
+}  
